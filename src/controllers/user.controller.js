@@ -146,7 +146,9 @@ const loginUser=asyncHandler(async (req,res)=>{
 const logoutUser=asyncHandler(async(req,res)=>{
     User.findByIdAndUpdate(
         req.user._id,{
-            refreshToken:undefined
+            $unset:{
+                refreshToken:1 
+            }
         },{
             new :true
         }
@@ -155,11 +157,11 @@ const logoutUser=asyncHandler(async(req,res)=>{
         httpOnly:true,
         secure:true
     }
-
+    //const currUser=getCurrentUser();
     return res.status(200)
     .clearCookie("accessToken",options)
     .clearCookie("refreshToken",options)
-    .json(new ApiResponse(200,{},"User logged out"))
+    .json(new ApiResponse(200,{},`User logged out`))
 })
 
 // refreshAccessToken
@@ -202,9 +204,9 @@ const changePassword=asyncHandler(async (req,res)=>{
     if(!(newPassword===confirmPassword)){
         throw new ApiError(401,"Confirm password should be same as new password")
     }
-    const user= User.findById(req.user?._id)
-    const isPasswordCorrect= await user.isPasswordCorrect(password)
-    if(!isPasswordCorrect){
+    const user=await User.findById(req.user?._id)
+    const isPasswordcorrect= await user.isPasswordCorrect(password)
+    if(!isPasswordcorrect){
         throw new ApiError(400,"invalid password")
     }
     if(newPassword!=confirmPassword){
@@ -241,7 +243,7 @@ const updateAvatar=asyncHandler(async(req,res)=>{
         },
         {new:true}
     ).select("-password")
-    return res.status(200).json(new ApiResponse(200,user,"coverImage updated"))
+    return res.status(200).json(new ApiResponse(200,user,"avatar updated"))
 
 })
 
@@ -336,45 +338,46 @@ const getUserProfile=asyncHandler(async (req,res)=>{
     
 })
 
-const getWatchHistory=asyncHandler(async(req,res)=>{
-    const user=await User.aggregate([
+const getWatchHistory = asyncHandler(async(req, res) => {
+    const user = await User.aggregate([
         {
-            $match:{
-                _id:new mongoose.Types.ObjectId(req.user._id)
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id)
             }
         },
         {
-            $lookup:{
-                from:"videos",
-                localField:"watchHistory",
-                foreignField:"_id",
-                as:"watchHistory",
-                pipeline:[
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
                     {
-                        $lookup:{
-                            from:"users",
-                            localField:"owner",
-                            foreignField:"_id",
-                            as:"owner",
-                            pipeline:[{
-                                $projects:{
-                                    fullname:1,
-                                    username:1,
-                                    avatar:1
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
                                 }
-                            }]
+                            ]
                         }
                     },
                     {
                         $addFields:{
                             owner:{
-                                $first:"$owner"
+                                $first: "$owner"
                             }
                         }
                     }
                 ]
             }
-
         }
     ])
     return res.status(200).json(new ApiResponse(200,user[0].watchHistory,"Watch history fetched successfully"))
